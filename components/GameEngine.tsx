@@ -21,8 +21,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, onGameOver, onScoreU
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
   const birdRef = useRef<Bird>({
-    x: 50,
-    y: CANVAS_HEIGHT / 2,
+    x: 60,
+    y: CANVAS_HEIGHT / 2.5,
     width: BIRD_SIZE,
     height: BIRD_SIZE,
     velocity: 0,
@@ -36,8 +36,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, onGameOver, onScoreU
 
   const resetGame = useCallback(() => {
     birdRef.current = {
-      x: 50,
-      y: CANVAS_HEIGHT / 2,
+      x: 60,
+      y: CANVAS_HEIGHT / 2.5,
       width: BIRD_SIZE,
       height: BIRD_SIZE,
       velocity: 0,
@@ -58,7 +58,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, onGameOver, onScoreU
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
         flap();
       }
     };
@@ -68,7 +68,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, onGameOver, onScoreU
 
   const spawnPipe = (timestamp: number) => {
     if (timestamp - lastPipeSpawnRef.current > CONFIG.pipeSpawnInterval) {
-      const minHeight = 50;
+      const minHeight = 80;
       const maxHeight = CANVAS_HEIGHT - GROUND_HEIGHT - CONFIG.gapSize - minHeight;
       const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
       
@@ -85,160 +85,166 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, onGameOver, onScoreU
   const update = (timestamp: number) => {
     if (gameState !== GameState.PLAYING) return;
 
-    // Bird physics
     birdRef.current.velocity += CONFIG.gravity;
     birdRef.current.y += birdRef.current.velocity;
     
-    // Rotation logic
-    const targetRotation = Math.min(Math.PI / 2, Math.max(-Math.PI / 4, birdRef.current.velocity * 0.1));
+    const targetRotation = Math.min(Math.PI / 4, Math.max(-Math.PI / 8, birdRef.current.velocity * 0.1));
     birdRef.current.rotation = targetRotation;
 
-    // Floor/Ceiling collision
     if (birdRef.current.y + birdRef.current.height > CANVAS_HEIGHT - GROUND_HEIGHT || birdRef.current.y < 0) {
       onGameOver(scoreRef.current);
     }
 
-    // Pipes movement and spawn
     spawnPipe(timestamp);
     pipesRef.current.forEach(pipe => {
       pipe.x -= CONFIG.pipeSpeed;
 
-      // Scoring
       if (!pipe.passed && pipe.x + pipe.width < birdRef.current.x) {
         pipe.passed = true;
         scoreRef.current += 1;
         onScoreUpdate(scoreRef.current);
       }
 
-      // Collision detection
-      const birdX = birdRef.current.x + 5;
-      const birdY = birdRef.current.y + 5;
-      const birdW = birdRef.current.width - 10;
-      const birdH = birdRef.current.height - 10;
+      const hitBoxPadding = 6;
+      const birdX = birdRef.current.x + hitBoxPadding;
+      const birdY = birdRef.current.y + hitBoxPadding;
+      const birdW = birdRef.current.width - (hitBoxPadding * 2);
+      const birdH = birdRef.current.height - (hitBoxPadding * 2);
 
-      // Top pipe
-      if (
-        birdX < pipe.x + pipe.width &&
-        birdX + birdW > pipe.x &&
-        birdY < pipe.topHeight
-      ) {
+      if (birdX < pipe.x + pipe.width && birdX + birdW > pipe.x && birdY < pipe.topHeight) {
         onGameOver(scoreRef.current);
       }
-
-      // Bottom pipe
-      if (
-        birdX < pipe.x + pipe.width &&
-        birdX + birdW > pipe.x &&
-        birdY + birdH > pipe.topHeight + CONFIG.gapSize
-      ) {
+      if (birdX < pipe.x + pipe.width && birdX + birdW > pipe.x && birdY + birdH > pipe.topHeight + CONFIG.gapSize) {
         onGameOver(scoreRef.current);
       }
     });
 
-    // Cleanup offscreen pipes
-    pipesRef.current = pipesRef.current.filter(pipe => pipe.x + pipe.width > -50);
-
-    // Parallax
+    pipesRef.current = pipesRef.current.filter(pipe => pipe.x + pipe.width > -100);
     groundOffsetRef.current = (groundOffsetRef.current + CONFIG.pipeSpeed) % CANVAS_WIDTH;
-    cloudOffsetRef.current = (cloudOffsetRef.current + CONFIG.pipeSpeed * 0.2) % CANVAS_WIDTH;
+    cloudOffsetRef.current = (cloudOffsetRef.current + CONFIG.pipeSpeed * 0.3) % CANVAS_WIDTH;
   };
 
   const draw = (ctx: CanvasRenderingContext2D) => {
-    // Clear
     ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // 1. Sky
+    // 1. Soft Sky
     ctx.fillStyle = COLORS.sky;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    // 2. Clouds (Simple procedural clouds)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    for (let i = 0; i < 2; i++) {
-      const x = (CANVAS_WIDTH * i) - cloudOffsetRef.current;
+    // 2. Fluffy Clouds
+    ctx.fillStyle = 'white';
+    for (let i = 0; i < 4; i++) {
+      const x = (CANVAS_WIDTH * i) - cloudOffsetRef.current - 50;
+      const y = 80 + (i % 2 === 0 ? 40 : 120);
       ctx.beginPath();
-      ctx.arc(x + 100, 150, 40, 0, Math.PI * 2);
-      ctx.arc(x + 150, 150, 50, 0, Math.PI * 2);
-      ctx.arc(x + 200, 150, 40, 0, Math.PI * 2);
+      ctx.arc(x + 40, y, 25, 0, Math.PI * 2);
+      ctx.arc(x + 80, y - 10, 35, 0, Math.PI * 2);
+      ctx.arc(x + 120, y, 25, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // 3. Pipes
+    // 3. Friendly Pipes (More Rounded)
     pipesRef.current.forEach(pipe => {
-      // Body
       ctx.fillStyle = COLORS.pipe;
       ctx.strokeStyle = COLORS.pipeBorder;
       ctx.lineWidth = 4;
 
+      const cornerRadius = 8;
+
+      // Draw rounded pipe helper
+      const drawPipePart = (px: number, py: number, pw: number, ph: number) => {
+          ctx.beginPath();
+          ctx.roundRect(px, py, pw, ph, cornerRadius);
+          ctx.fill();
+          ctx.stroke();
+      };
+
       // Top pipe
-      ctx.fillRect(pipe.x, 0, pipe.width, pipe.topHeight);
-      ctx.strokeRect(pipe.x, 0, pipe.width, pipe.topHeight);
-      // Top pipe cap
-      ctx.fillRect(pipe.x - 5, pipe.topHeight - 20, pipe.width + 10, 20);
-      ctx.strokeRect(pipe.x - 5, pipe.topHeight - 20, pipe.width + 10, 20);
+      drawPipePart(pipe.x, -cornerRadius, pipe.width, pipe.topHeight + cornerRadius);
+      // Top pipe cap (larger/rounder)
+      drawPipePart(pipe.x - 6, pipe.topHeight - 28, pipe.width + 12, 28);
 
       // Bottom pipe
       const bottomY = pipe.topHeight + CONFIG.gapSize;
       const bottomH = CANVAS_HEIGHT - GROUND_HEIGHT - bottomY;
-      ctx.fillRect(pipe.x, bottomY, pipe.width, bottomH);
-      ctx.strokeRect(pipe.x, bottomY, pipe.width, bottomH);
+      drawPipePart(pipe.x, bottomY, pipe.width, bottomH + cornerRadius);
       // Bottom pipe cap
-      ctx.fillRect(pipe.x - 5, bottomY, pipe.width + 10, 20);
-      ctx.strokeRect(pipe.x - 5, bottomY, pipe.width + 10, 20);
+      drawPipePart(pipe.x - 6, bottomY, pipe.width + 12, 28);
     });
 
     // 4. Ground
     ctx.fillStyle = COLORS.ground;
     ctx.fillRect(0, CANVAS_HEIGHT - GROUND_HEIGHT, CANVAS_WIDTH, GROUND_HEIGHT);
-    // Ground top green strip
     ctx.fillStyle = COLORS.groundTop;
-    ctx.fillRect(0, CANVAS_HEIGHT - GROUND_HEIGHT, CANVAS_WIDTH, 15);
-    // Ground patterns
-    ctx.fillStyle = 'rgba(0,0,0,0.1)';
-    for (let i = 0; i < CANVAS_WIDTH / 20 + 1; i++) {
-        const x = (i * 20) - (groundOffsetRef.current % 20);
-        ctx.fillRect(x, CANVAS_HEIGHT - GROUND_HEIGHT, 10, 15);
+    ctx.fillRect(0, CANVAS_HEIGHT - GROUND_HEIGHT, CANVAS_WIDTH, 12);
+    
+    // Tiny grass tufts
+    ctx.fillStyle = COLORS.groundTop;
+    for (let i = 0; i < (CANVAS_WIDTH / 30) + 2; i++) {
+        const x = (i * 30) - (groundOffsetRef.current % 30);
+        ctx.beginPath();
+        ctx.arc(x, CANVAS_HEIGHT - GROUND_HEIGHT, 8, 0, Math.PI, true);
+        ctx.fill();
     }
 
-    // 5. Bird
+    // 5. Cute Bird Sprite
     ctx.save();
     ctx.translate(birdRef.current.x + birdRef.current.width / 2, birdRef.current.y + birdRef.current.height / 2);
     ctx.rotate(birdRef.current.rotation);
     
-    // Body
+    // Body (Rounder/Cuter)
     ctx.fillStyle = COLORS.bird;
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#862E00'; // Softer brown border
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.ellipse(0, 0, birdRef.current.width/2, birdRef.current.height/2.2, 0, 0, Math.PI * 2);
+    ctx.arc(0, 0, birdRef.current.width/1.8, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Eye
+    // Eye (Bigger/Friendlier)
     ctx.fillStyle = 'white';
     ctx.beginPath();
-    ctx.arc(8, -5, 8, 0, Math.PI * 2);
+    ctx.arc(10, -8, 10, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = 'black';
+    
+    // Pupil (Blinking occasionally)
+    const isBlinking = Math.floor(performance.now() / 2000) % 10 === 0;
+    if (!isBlinking) {
+        ctx.fillStyle = 'black';
+        ctx.beginPath();
+        ctx.arc(14, -8, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+    } else {
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(10, -8);
+        ctx.lineTo(18, -8);
+        ctx.stroke();
+    }
+
+    // Tiny Blush
+    ctx.fillStyle = 'rgba(255, 100, 100, 0.3)';
     ctx.beginPath();
-    ctx.arc(12, -5, 4, 0, Math.PI * 2);
+    ctx.arc(8, 2, 5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Beak
-    ctx.fillStyle = '#ff8c00';
+    // Beak (Small/Cute)
+    ctx.fillStyle = '#FF922B';
     ctx.beginPath();
-    ctx.moveTo(12, 0);
-    ctx.lineTo(24, 5);
-    ctx.lineTo(12, 10);
+    ctx.moveTo(16, -2);
+    ctx.lineTo(28, 4);
+    ctx.lineTo(16, 10);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // Wing
-    const wingY = Math.sin(performance.now() * 0.02) * 5;
-    ctx.fillStyle = '#3b82f6';
+    // Wing (Whimsical flap)
+    const wingY = Math.sin(performance.now() * 0.012) * 8;
+    ctx.fillStyle = '#FFF';
     ctx.beginPath();
-    ctx.ellipse(-10, wingY, 12, 8, 0, 0, Math.PI * 2);
+    ctx.ellipse(-14, wingY, 12, 8, -Math.PI/8, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
@@ -246,18 +252,18 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, onGameOver, onScoreU
   };
 
   const render = (timestamp: number) => {
-    if (gameState === GameState.PLAYING) {
-      update(timestamp);
-    }
     const ctx = canvasRef.current?.getContext('2d');
-    if (ctx) draw(ctx);
+    if (ctx) {
+      if (gameState === GameState.PLAYING) {
+        update(timestamp);
+      }
+      draw(ctx);
+    }
     requestRef.current = requestAnimationFrame(render);
   };
 
   useEffect(() => {
-    if (gameState === GameState.PLAYING) {
-      resetGame();
-    }
+    if (gameState === GameState.PLAYING) resetGame();
     requestRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(requestRef.current);
   }, [gameState, resetGame]);
@@ -268,11 +274,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ gameState, onGameOver, onScoreU
       width={CANVAS_WIDTH}
       height={CANVAS_HEIGHT}
       onMouseDown={flap}
-      onTouchStart={(e) => {
-          e.preventDefault();
-          flap();
-      }}
-      className="cursor-pointer"
+      onTouchStart={(e) => { e.preventDefault(); flap(); }}
+      className="cursor-pointer block"
     />
   );
 };
